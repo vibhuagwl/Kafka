@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: order-service
+  config:
+    import:
+      - optional:classpath:application-kafka.yml
+      - optional:classpath:application-ecommerce-kafka.yml
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/orders
+    username: ${POSTGRES_USER:ecommerce}
+    password: ${POSTGRES_PASSWORD:ecommerce}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    consumer:
+      group-id: ${platform.kafka.group-id-prefix}order-service
+
+platform:
+  kafka:
+    transactions-enabled: true
+    transactional-id-prefix: ecommerce-tx-order-
+    group-instance-id: ${HOSTNAME:order-service-1}
+
+ecommerce:
+  outbox:
+    poll-ms: 1000
+
+server:
+  port: ${SERVER_PORT:8081}

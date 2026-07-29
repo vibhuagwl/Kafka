@@ -1,0 +1,47 @@
+# Ecommerce domain topic pack — import after platform defaults.
+platform:
+  kafka:
+    group-id-prefix: ecommerce-
+    dead-letter-topic: dead-letter
+    default-original-topic-fallback: orders
+    retry-topics-enabled: true
+    retry-include-topics:
+      - orders
+      - inventory
+      - payment
+      - shipping
+      - notification
+    trusted-packages:
+      - com.ecommerce.order.*
+    value-default-type: com.ecommerce.order.common.event.DomainEvent
+    default-replication-factor: 3
+    min-in-sync-replicas: 2
+    topics:
+      - name: orders
+        partitions: 6
+      - name: inventory
+        partitions: 6
+      - name: payment
+        partitions: 6
+      - name: shipping
+        partitions: 6
+      - name: notification
+        partitions: 6
+      - name: audit
+        partitions: 3
+      - name: retry
+        partitions: 6
+      - name: dead-letter
+        partitions: 6
+      - name: reply-topic
+        partitions: 3
+      - name: transaction-topic
+        partitions: 3
+      - name: event-store
+        partitions: 6
+      - name: customer-order-counts
+        partitions: 3
+      - name: customer-order-windowed
+        partitions: 3
+      - name: orders-enriched
+        partitions: 6

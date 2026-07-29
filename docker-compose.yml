@@ -1,0 +1,231 @@
+# =============================================================================
+# E-Commerce Order System — Kafka 4.x KRaft Cluster (NO ZooKeeper)
+# =============================================================================
+# Topology: 3 combined broker+controller nodes (quorum voters = all three)
+# Demonstrates: controller quorum, leader election, ISR, RF, min.ISR,
+#               rack awareness, broker/controller failover & recovery
+# =============================================================================
+
+x-kafka-common: &kafka-common
+  image: apache/kafka:4.0.0
+  environment: &kafka-common-env
+    CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    KAFKA_PROCESS_ROLES: broker,controller
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+    KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    KAFKA_NUM_PARTITIONS: 6
+    KAFKA_LOG_RETENTION_HOURS: 168
+    KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+  networks:
+    - ecommerce-net
+  restart: unless-stopped
+
+services:
+  kafka-1:
+    <<: *kafka-common
+    container_name: kafka-1
+    hostname: kafka-1
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      <<: *kafka-common-env
+      KAFKA_NODE_ID: 1
+      KAFKA_BROKER_RACK: rack-a
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:19092,EXTERNAL://localhost:9092
+    volumes:
+      - kafka-1-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  kafka-2:
+    <<: *kafka-common
+    container_name: kafka-2
+    hostname: kafka-2
+    ports:
+      - "9094:9094"
+      - "9095:9095"
+    environment:
+      <<: *kafka-common-env
+      KAFKA_NODE_ID: 2
+      KAFKA_BROKER_RACK: rack-b
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:19092,EXTERNAL://localhost:9094
+      # Map host port 9095 unused for controller externally; controller stays internal
+    volumes:
+      - kafka-2-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  kafka-3:
+    <<: *kafka-common
+    container_name: kafka-3
+    hostname: kafka-3
+    ports:
+      - "9096:9096"
+      - "9097:9097"
+    environment:
+      <<: *kafka-common-env
+      KAFKA_NODE_ID: 3
+      KAFKA_BROKER_RACK: rack-c
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9096
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:19092,EXTERNAL://localhost:9096
+    volumes:
+      - kafka-3-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecommerce-postgres
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: ecommerce
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.8.0
+    container_name: schema-registry
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    ports:
+      - "8082:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-1:19092,PLAINTEXT://kafka-2:19092,PLAINTEXT://kafka-3:19092
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: BACKWARD
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # Optional: wait for brokers then verify cluster metadata (topics created by Spring KafkaAdmin)
+  kafka-init:
+    image: apache/kafka:4.0.0
+    container_name: kafka-init
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        echo "=== Cluster metadata ==="
+        /opt/kafka/bin/kafka-metadata-quorum.sh --bootstrap-server kafka-1:19092 describe --status
+        echo "=== Brokers ==="
+        /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka-1:19092,kafka-2:19092,kafka-3:19092 | head -n 20
+        echo "Kafka KRaft cluster is ready. Topics are created by Spring KafkaAdmin on service boot."
+    restart: "no"
+
+  # Debezium CDC (Q84–Q87) — streams Postgres outbox_event → Kafka
+  connect:
+    image: debezium/connect:2.7
+    container_name: debezium-connect
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka-1:19092,kafka-2:19092,kafka-3:19092
+      GROUP_ID: ecommerce-connect
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 3
+      OFFSET_STORAGE_REPLICATION_FACTOR: 3
+      STATUS_STORAGE_REPLICATION_FACTOR: 3
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+volumes:
+  kafka-1-data:
+  kafka-2-data:
+  kafka-3-data:
+  postgres-data:
+  redis-data:
+
+networks:
+  ecommerce-net:
+    driver: bridge

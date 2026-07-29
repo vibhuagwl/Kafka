@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "OrderKey",
+  "namespace": "com.ecommerce.order.avro",
+  "doc": "Avro partition key — same orderId always hashes to same partition (ordering).",
+  "fields": [
+    { "name": "orderId", "type": "string" },
+    { "name": "customerId", "type": ["null", "string"], "default": null }
+  ]
+}

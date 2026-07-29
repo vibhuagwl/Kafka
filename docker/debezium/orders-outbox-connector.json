@@ -1,0 +1,25 @@
+{
+  "name": "orders-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "plugin.name": "pgoutput",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "ecommerce",
+    "database.password": "ecommerce",
+    "database.dbname": "orders",
+    "topic.prefix": "cdc.orders",
+    "table.include.list": "public.outbox_event",
+    "slot.name": "orders_outbox_slot",
+    "publication.autocreate.mode": "filtered",
+    "tombstones.on.delete": "false",
+    "transforms": "route",
+    "transforms.route.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.route.table.fields.additional.placement": "type:envelope:type",
+    "transforms.route.route.by.field": "topic",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}

@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: streams-service
+  config:
+    import:
+      - optional:classpath:application-kafka.yml
+      - optional:classpath:application-ecommerce-kafka.yml
+  kafka:
+    bootstrap-servers: ${platform.kafka.bootstrap-servers:localhost:9092,localhost:9094,localhost:9096}
+    streams:
+      application-id: ecommerce-streams
+      properties:
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        processing.guarantee: exactly_once_v2
+        num.stream.threads: 2
+        state.dir: ${STREAMS_STATE_DIR:/tmp/kafka-streams/ecommerce}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+server:
+  port: ${SERVER_PORT:8089}

@@ -1,0 +1,23 @@
+# Optional overlay: SASL/SCRAM + ACL demo (Q73–Q77)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.security.yml up -d
+#
+# NOTE: Full mTLS requires generating certs (see docs/security/README.md).
+# This overlay documents JAAS/SCRAM client settings for Spring:
+#   ecommerce.kafka.security.enabled=true
+#   ecommerce.kafka.security.protocol=SASL_PLAINTEXT
+#   ecommerce.kafka.security.sasl-mechanism=SCRAM-SHA-256
+#   ecommerce.kafka.security.sasl-jaas-config=org.apache.kafka.common.security.scram.ScramLoginModule required username="app" password="app-secret";
+
+services:
+  kafka-1:
+    environment:
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,SASL:SASL_PLAINTEXT
+      # Keep PLAINTEXT for local learning cluster; enable SASL listener in hardened envs.
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
+  # Authorizer (ACL) — Kafka 4.x
+  # KAFKA_AUTHORIZER_CLASS_NAME: org.apache.kafka.metadata.authorizer.StandardAuthorizer
+  # KAFKA_SUPER_USERS: User:admin
+
+  # Placeholder: mount JAAS when hardening
+  # volumes:
+  #   - ./docker/security/kafka_server_jaas.conf:/etc/kafka/kafka_server_jaas.conf:ro

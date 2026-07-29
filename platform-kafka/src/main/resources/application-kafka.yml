@@ -1,0 +1,64 @@
+# Generic defaults — override topics / trusted packages per application.
+platform:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9094,localhost:9096}
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://localhost:8082}
+    assignor: COOPERATIVE_STICKY
+    transactions-enabled: ${KAFKA_TXN_ENABLED:false}
+    transactional-id-prefix: ${KAFKA_TXN_PREFIX:platform-tx-}
+    partitioner-mode: HASH_OR_STICKY
+    group-instance-id: ${KAFKA_GROUP_INSTANCE_ID:}
+    group-id-prefix: ${KAFKA_GROUP_PREFIX:app-}
+    dead-letter-topic: ${KAFKA_DLT_TOPIC:dead-letter}
+    default-original-topic-fallback: unknown
+    retry-topics-enabled: false
+    retry-include-topics: []
+    auto-create-topics: true
+    trusted-packages:
+      - "*"
+    value-default-type:
+    default-replication-factor: 3
+    min-in-sync-replicas: 2
+    security:
+      enabled: false
+      protocol: PLAINTEXT
+    producer:
+      acks: all
+      enable-idempotence: true
+      retries: 2147483647
+      linger-ms: 5
+      batch-size: 32768
+      buffer-memory: 67108864
+      max-in-flight-requests-per-connection: 5
+      delivery-timeout-ms: 120000
+      request-timeout-ms: 30000
+      compression-type: lz4
+      client-id-prefix: platform-producer
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      isolation-level: read_committed
+      max-poll-records: 100
+      max-poll-interval-ms: 300000
+      session-timeout-ms: 45000
+      heartbeat-interval-ms: 15000
+      fetch-min-bytes: 1
+      fetch-max-wait-ms: 500
+      concurrency: 3
+      client-id-prefix: platform-consumer
+    # Apps declare topics; empty by default for true plug-and-play
+    topics: []
+
+spring:
+  kafka:
+    bootstrap-servers: ${platform.kafka.bootstrap-servers}
+    admin:
+      fail-fast: true
+    listener:
+      observation-enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics

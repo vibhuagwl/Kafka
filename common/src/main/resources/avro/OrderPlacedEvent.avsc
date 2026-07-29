@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "OrderPlacedEvent",
+  "namespace": "com.ecommerce.order.avro",
+  "doc": "Avro value for OrderPlaced — registered in Schema Registry for evolution.",
+  "fields": [
+    { "name": "eventId", "type": "string" },
+    { "name": "orderId", "type": "string" },
+    { "name": "customerId", "type": "string" },
+    { "name": "totalAmount", "type": "string" },
+    { "name": "currency", "type": "string" },
+    { "name": "correlationId", "type": "string" },
+    { "name": "occurredAtEpochMs", "type": "long" },
+    { "name": "schemaVersion", "type": "int", "default": 1 }
+  ]
+}
